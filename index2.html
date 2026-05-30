@@ -1,228 +1,299 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Tab Monaco Editor + Gemini</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Tab Monaco Editor + Gemini</title>
 
-    <style>
-        * { box-sizing: border-box; }
-        body, html { margin: 0; padding: 0; height: 100%; background-color: #1e1e1e; color: #fff; overflow: hidden; }
-        #app { display: flex; flex-direction: column; height: 100%; }
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background-color: #1e1e1e; color: #fff; overflow: hidden; }
+    #app { display: flex; flex-direction: column; height: 100%; }
 
-        .tab-bar { display: flex; align-items: center; background-color: #252526; padding: 0 10px; height: 40px; border-bottom: 1px solid #3c3c3c; overflow-x: auto; }
-        .tabs-container { display: flex; align-items: center; height: 100%; }
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      background-color: #252526;
+      padding: 0 10px;
+      height: 40px;
+      border-bottom: 1px solid #3c3c3c;
+      overflow-x: auto;
+    }
+    .tabs-container { display: flex; align-items: center; height: 100%; }
 
-        .tab { display: flex; align-items: center; background-color: #2d2d2d; color: #969696;
-            padding: 0 15px; height: 100%; border-right: 1px solid #252526; cursor: pointer;
-            user-select: none; position: relative; min-width: 140px; max-width: 220px;
-            justify-content: space-between; }
-        .tab.active { background-color: #1e1e1e; color: #ffffff; border-top: 2px solid #007acc; }
-        .tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; margin-right: 8px; font-size: 13px; }
-        .tab-input { background: #3c3c3c; color: white; border: 1px solid #007acc; font-size: 13px; padding: 2px; width: 100%; display: none; }
+    .tab {
+      display: flex;
+      align-items: center;
+      background-color: #2d2d2d;
+      color: #969696;
+      padding: 0 15px;
+      height: 100%;
+      border-right: 1px solid #252526;
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      min-width: 140px;
+      max-width: 220px;
+      justify-content: space-between;
+    }
+    .tab.active {
+      background-color: #1e1e1e;
+      color: #ffffff;
+      border-top: 2px solid #007acc;
+    }
+    .tab-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex-grow: 1;
+      margin-right: 8px;
+      font-size: 13px;
+    }
+    .tab-input {
+      background: #3c3c3c;
+      color: white;
+      border: 1px solid #007acc;
+      font-size: 13px;
+      padding: 2px;
+      width: 100%;
+      display: none;
+    }
 
-        .download-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; fill: #969696; }
-        .download-btn:hover { background-color: #3c3c3c; fill: #007acc; }
+    .download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      fill: #969696;
+    }
+    .download-btn:hover {
+      background-color: #3c3c3c;
+      fill: #007acc;
+    }
 
-        .add-tab-btn { background: none; border: none; color: #cccccc; font-size: 20px; cursor: pointer; width: 30px; height: 30px; margin-left: 5px; border-radius: 4px; }
-        .add-tab-btn:hover { background-color: #333333; color: white; }
+    .add-tab-btn {
+      background: none;
+      border: none;
+      color: #cccccc;
+      font-size: 20px;
+      cursor: pointer;
+      width: 30px;
+      height: 30px;
+      margin-left: 5px;
+      border-radius: 4px;
+    }
+    .add-tab-btn:hover {
+      background-color: #333333;
+      color: white;
+    }
 
-        #editor-container { flex-grow: 1; width: 100%; position: relative; }
-        #editor { width: 100%; height: 100%; }
+    #editor-container {
+      flex-grow: 1;
+      width: 100%;
+      height: calc(100% - 40px);
+      position: relative;
+    }
+    #editor {
+      width: 100%;
+      height: 100%;
+    }
 
-        .hidden {
-            display: none !important;
-        }
-        /* AIバー */
-        .ai-bar {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 48px;
-            background-color: #252526;
-            border-top: 1px solid #3c3c3c;
-            display: flex;
-            align-items: center;
-            padding: 6px 10px;
-            gap: 8px;
-            z-index: 20;
-        }
-        .ai-input {
-            flex: 1;
-            height: 32px;
-            background-color: #1e1e1e;
-            border: 1px solid #3c3c3c;
-            color: #ffffff;
-            padding: 4px 8px;
-            font-size: 13px;
-        }
-        .ai-button {
-            height: 32px;
-            padding: 0 12px;
-            border: none;
-            border-radius: 4px;
-            background-color: #007acc;
-            color: #ffffff;
-            cursor: pointer;
-            font-size: 13px;
-        }
-        .ai-button:disabled {
-            opacity: 0.6;
-            cursor: default;
-        }
-        .ai-status {
-            font-size: 12px;
-            color: #cccccc;
-            min-width: 80px;
-        }
+    .hidden {
+      display: none !important;
+    }
 
-        /* 設定ボタン（右下固定） */
-        .settings-button {
-            position: fixed;
-            right: 12px;
-            bottom: 12px;
-            width: 40px;
-            height: 40px;
-            cursor: pointer;
-            z-index: 30;
-        }
-        .settings-button svg {
-            width: 100%;
-            height: 100%;
-        }
+    /* AIバー */
+    .ai-bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 48px;
+      background-color: #252526;
+      border-top: 1px solid #3c3c3c;
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
+      gap: 8px;
+      z-index: 20;
+    }
+    .ai-input {
+      flex: 1;
+      height: 32px;
+      background-color: #1e1e1e;
+      border: 1px solid #3c3c3c;
+      color: #ffffff;
+      padding: 4px 8px;
+      font-size: 13px;
+    }
+    .ai-button {
+      height: 32px;
+      padding: 0 12px;
+      border: none;
+      border-radius: 4px;
+      background-color: #007acc;
+      color: #ffffff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .ai-button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .ai-status {
+      font-size: 12px;
+      color: #cccccc;
+      min-width: 80px;
+    }
 
-        /* 設定モーダル */
-        .settings-modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 40;
-        }
-        .settings-modal {
-            background-color: #252526;
-            border: 1px solid #3c3c3c;
-            padding: 16px;
-            width: 320px;
-            border-radius: 6px;
-            font-size: 13px;
-        }
-        .settings-modal h2 {
-            margin: 0 0 10px;
-            font-size: 15px;
-        }
-        .settings-row {
-            margin-bottom: 10px;
-        }
-        .settings-row label {
-            display: block;
-            margin-bottom: 4px;
-        }
-        .settings-input {
-            width: 100%;
-            padding: 4px 6px;
-            border-radius: 4px;
-            border: 1px solid #3c3c3c;
-            background-color: #1e1e1e;
-            color: #ffffff;
-        }
-        .settings-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .settings-btn {
-            padding: 4px 10px;
-            border-radius: 4px;
-            border: none;
-            cursor: pointer;
-            font-size: 13px;
-        }
-        .settings-btn.save {
-            background-color: #007acc;
-            color: #ffffff;
-        }
-        .settings-btn.cancel {
-            background-color: #3c3c3c;
-            color: #ffffff;
-        }
+    /* 設定ボタン（右下固定） */
+    .settings-button {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      z-index: 30;
+    }
+    .settings-button svg {
+      width: 100%;
+      height: 100%;
+    }
 
-        /* エディタとAIバーの高さ調整 */
-        #editor-container.with-ai-bar #editor {
-            height: calc(100% - 48px);
-        }
-    </style>
+    /* 設定モーダル */
+    .settings-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+    }
+    .settings-modal {
+      background-color: #252526;
+      border: 1px solid #3c3c3c;
+      padding: 16px;
+      width: 320px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .settings-modal h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+    .settings-row {
+      margin-bottom: 10px;
+    }
+    .settings-row label {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .settings-input {
+      width: 100%;
+      padding: 4px 6px;
+      border-radius: 4px;
+      border: 1px solid #3c3c3c;
+      background-color: #1e1e1e;
+      color: #ffffff;
+    }
+    .settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .settings-btn {
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .settings-btn.save {
+      background-color: #007acc;
+      color: #ffffff;
+    }
+    .settings-btn.cancel {
+      background-color: #3c3c3c;
+      color: #ffffff;
+    }
 
-    <!-- Monaco Editor CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    /* エディタとAIバーの高さ調整 */
+    #editor-container.with-ai-bar #editor {
+      height: calc(100% - 48px);
+    }
+  </style>
+
+  <!-- Monaco Editor CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 </head>
 <body>
-
 <div id="app">
-    <div class="tab-bar">
-        <div class="tabs-container" id="tabs-container"></div>
-        <button class="add-tab-btn" id="add-tab-btn">+</button>
-    </div>
+  <div class="tab-bar">
+    <div class="tabs-container" id="tabs-container"></div>
+    <button class="add-tab-btn" id="add-tab-btn">+</button>
+  </div>
 
-    <div id="editor-container">
-        <div id="editor"></div>
+  <div id="editor-container">
+    <div id="editor"></div>
 
-        <!-- AIバー（デフォルト非表示） -->
-        <div id="ai-bar" class="ai-bar hidden">
-            <input id="ai-input" class="ai-input" type="text" placeholder="Gemini に指示を書く（例: シンプルなHTMLランディングページを作って）">
-            <button id="ai-run" class="ai-button">AIに依頼</button>
-            <div id="ai-status" class="ai-status"></div>
-        </div>
+    <!-- AIバー（デフォルト非表示） -->
+    <div id="ai-bar" class="ai-bar hidden">
+      <input id="ai-input" class="ai-input" type="text"
+             placeholder="Gemini に指示を書く（例: シンプルなHTMLランディングページを作って）" />
+      <button id="ai-run" class="ai-button">AIに依頼</button>
+      <div id="ai-status" class="ai-status"></div>
     </div>
+  </div>
 </div>
 
 <!-- 設定ボタン -->
 <div id="settings-button" class="settings-button" title="Gemini 設定">
-    <!-- 指定のSVGアイコン -->
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r="48" fill="#333333" />
-      <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" />
-      <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" transform="rotate(45 50 50)" />
-      <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" transform="rotate(90 50 50)" />
-      <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" transform="rotate(135 50 50)" />
-      <circle cx="50" cy="50" r="24" fill="#ffffff" />
-      <circle cx="50" cy="50" r="11" fill="#333333" />
-    </svg>
+  <!-- 指定のSVGアイコン -->
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="48" fill="#333333" />
+    <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" />
+    <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" transform="rotate(45 50 50)" />
+    <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" transform="rotate(90 50 50)" />
+    <rect x="42" y="16" width="16" height="68" rx="6" fill="#ffffff" transform="rotate(135 50 50)" />
+    <circle cx="50" cy="50" r="24" fill="#ffffff" />
+    <circle cx="50" cy="50" r="11" fill="#333333" />
+  </svg>
 </div>
 
-<!-- 設定モーダル（動的に表示） -->
+<!-- 設定モーダル -->
 <div id="settings-backdrop" class="settings-modal-backdrop hidden">
-    <div class="settings-modal">
-        <h2>Gemini 設定</h2>
-        <div class="settings-row">
-            <label for="settings-api-key">Gemini API キー</label>
-            <input id="settings-api-key" class="settings-input" type="password" placeholder="AI Studio で発行した API キー">
-        </div>
-        <div class="settings-row">
-            <label>
-                <input type="checkbox" id="settings-show-ai-bar">
-                AI プロンプトバーを表示する
-            </label>
-        </div>
-        <div class="settings-actions">
-            <button class="settings-btn cancel" id="settings-cancel">キャンセル</button>
-            <button class="settings-btn save" id="settings-save">保存</button>
-        </div>
+  <div class="settings-modal">
+    <h2>Gemini 設定</h2>
+    <div class="settings-row">
+      <label for="settings-api-key">Gemini API キー</label>
+      <input id="settings-api-key" class="settings-input" type="password" placeholder="AI Studio で発行した API キー" />
     </div>
+    <div class="settings-row">
+      <label>
+        <input type="checkbox" id="settings-show-ai-bar" />
+        AI プロンプトバーを表示する
+      </label>
+    </div>
+    <div class="settings-actions">
+      <button class="settings-btn cancel" id="settings-cancel">キャンセル</button>
+      <button class="settings-btn save" id="settings-save">保存</button>
+    </div>
+  </div>
 </div>
 
 <script>
-    // ====== Monaco + タブ管理 ======
-    let tabs = [];
-    let activeTabId = null;
-    let tabCounter = 0;
-    let editor = null;
+  // ====== Monaco + タブ管理 ======
+  let tabs = [];
+  let activeTabId = null;
+  let tabCounter = 0;
+  let editor = null;
 
-    const initialJsonContent = `{
+  const initialJsonContent = `{
   "name": "example-project",
   "version": "1.0.0",
   "description": "テストファイルです",
@@ -235,242 +306,241 @@
   ]
 }`;
 
-    require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } });
+  require.config({
+    paths: {
+      vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs"
+    }
+  });
 
-    require(["vs/editor/editor.main"], () => {
-        editor = monaco.editor.create(document.getElementById("editor"), {
-            value: "",
-            language: "plaintext",
-            theme: "vs-dark",
-            automaticLayout: true,
-        });
-
-        createNewTab("example.json", initialJsonContent);
+  require(["vs/editor/editor.main"], () => {
+    editor = monaco.editor.create(document.getElementById("editor"), {
+      value: "",
+      language: "plaintext",
+      theme: "vs-dark",
+      automaticLayout: true
     });
 
-    document.getElementById('add-tab-btn').addEventListener('click', () => {
-        createNewTab();
-    });
+    createNewTab("example.json", initialJsonContent);
+  });
 
-    function createNewTab(filename = null, content = "") {
-        tabCounter++;
-        const id = "tab-" + tabCounter;
-        const name = filename || `file_${tabCounter}.txt`;
-        const language = detectLanguage(name);
+  document.getElementById("add-tab-btn").addEventListener("click", () => {
+    createNewTab();
+  });
 
-        const model = monaco.editor.createModel(content, language);
-        const tabObj = { id, name, model };
-        tabs.push(tabObj);
+  function createNewTab(filename = null, content = "") {
+    tabCounter++;
+    const id = "tab-" + tabCounter;
+    const name = filename || `file_${tabCounter}.txt`;
+    const language = detectLanguage(name);
 
+    const model = monaco.editor.createModel(content, language);
+    const tabObj = { id, name, model };
+    tabs.push(tabObj);
+
+    renderTabs();
+    switchTab(id);
+  }
+
+  function renderTabs() {
+    const container = document.getElementById("tabs-container");
+    container.innerHTML = "";
+
+    tabs.forEach((tab) => {
+      const tabEl = document.createElement("div");
+      tabEl.className = `tab ${tab.id === activeTabId ? "active" : ""}`;
+      tabEl.dataset.id = tab.id;
+
+      const nameEl = document.createElement("span");
+      nameEl.className = "tab-name";
+      nameEl.innerText = tab.name;
+
+      const inputEl = document.createElement("input");
+      inputEl.className = "tab-input";
+      inputEl.value = tab.name;
+
+      const downloadBtn = document.createElement("div");
+      downloadBtn.className = "download-btn";
+      downloadBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="16" height="16">
+          <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
+        </svg>
+      `;
+
+      tabEl.addEventListener("click", (e) => {
+        if (e.target.closest(".download-btn") || e.target.closest(".tab-input")) return;
+        switchTab(tab.id);
+      });
+
+      tabEl.addEventListener("dblclick", () => {
+        nameEl.style.display = "none";
+        inputEl.style.display = "block";
+        inputEl.focus();
+        inputEl.select();
+      });
+
+      const saveName = () => {
+        const newName = inputEl.value.trim();
+        if (newName && newName !== tab.name) {
+          tab.name = newName;
+          const lang = detectLanguage(tab.name);
+          monaco.editor.setModelLanguage(tab.model, lang);
+        }
         renderTabs();
-        switchTab(id);
-    }
+      };
 
-    function renderTabs() {
-        const container = document.getElementById('tabs-container');
-        container.innerHTML = '';
+      inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") saveName();
+        if (e.key === "Escape") renderTabs();
+      });
+      inputEl.addEventListener("blur", saveName);
 
-        tabs.forEach(tab => {
-            const tabEl = document.createElement('div');
-            tabEl.className = `tab ${tab.id === activeTabId ? 'active' : ''}`;
-            tabEl.dataset.id = tab.id;
+      downloadBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        downloadFile(tab);
+      });
 
-            const nameEl = document.createElement('span');
-            nameEl.className = 'tab-name';
-            nameEl.innerText = tab.name;
-
-            const inputEl = document.createElement('input');
-            inputEl.className = 'tab-input';
-            inputEl.value = tab.name;
-
-            const downloadBtn = document.createElement('div');
-            downloadBtn.className = 'download-btn';
-            downloadBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" width="16" height="16">
-                    <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/>
-                </svg>
-            `;
-
-            tabEl.addEventListener('click', (e) => {
-                if (e.target.closest('.download-btn') || e.target.closest('.tab-input')) return;
-                switchTab(tab.id);
-            });
-
-            tabEl.addEventListener('dblclick', () => {
-                nameEl.style.display = 'none';
-                inputEl.style.display = 'block';
-                inputEl.focus();
-                inputEl.select();
-            });
-
-            const saveName = () => {
-                const newName = inputEl.value.trim();
-                if (newName && newName !== tab.name) {
-                    tab.name = newName;
-                    const lang = detectLanguage(tab.name);
-                    monaco.editor.setModelLanguage(tab.model, lang);
-                }
-                renderTabs();
-            };
-
-            inputEl.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') saveName();
-                if (e.key === 'Escape') renderTabs();
-            });
-            inputEl.addEventListener('blur', saveName);
-
-            downloadBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                downloadFile(tab);
-            });
-
-            tabEl.appendChild(nameEl);
-            tabEl.appendChild(inputEl);
-            tabEl.appendChild(downloadBtn);
-            container.appendChild(tabEl);
-        });
-    }
-
-    function switchTab(id) {
-        activeTabId = id;
-        const tab = tabs.find(t => t.id === id);
-        if (tab && editor) {
-            editor.setModel(tab.model);
-        }
-
-        document.querySelectorAll('.tab').forEach(el => {
-            el.classList.toggle('active', el.dataset.id === id);
-        });
-    }
-
-    function detectLanguage(filename) {
-        if (filename.endsWith(".json")) return "json";
-        if (filename.endsWith(".js")) return "javascript";
-        if (filename.endsWith(".ts")) return "typescript";
-        if (filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
-        if (filename.endsWith(".css")) return "css";
-        if (filename.endsWith(".md")) return "markdown";
-        return "plaintext";
-    }
-
-    function downloadFile(tab) {
-        const content = tab.model.getValue();
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = tab.name;
-        link.click();
-        URL.revokeObjectURL(link.href);
-    }
-
-    function findTabByName(name) {
-        return tabs.find(t => t.name === name);
-    }
-
-    // ====== 設定・ローカルストレージ ======
-    const LS_KEY_API = "geminiApiKey";
-    const LS_KEY_SHOW_BAR = "geminiShowAiBar";
-
-    const settingsButton = document.getElementById("settings-button");
-    const settingsBackdrop = document.getElementById("settings-backdrop");
-    const settingsApiKeyInput = document.getElementById("settings-api-key");
-    const settingsShowAiBarCheckbox = document.getElementById("settings-show-ai-bar");
-    const settingsSaveBtn = document.getElementById("settings-save");
-    const settingsCancelBtn = document.getElementById("settings-cancel");
-
-    const aiBar = document.getElementById("ai-bar");
-    const editorContainer = document.getElementById("editor-container");
-
-    function loadSettings() {
-        const apiKey = localStorage.getItem(LS_KEY_API) || "";
-        const showBar = localStorage.getItem(LS_KEY_SHOW_BAR) === "true";
-
-        settingsApiKeyInput.value = apiKey;
-        settingsShowAiBarCheckbox.checked = showBar;
-        applyAiBarVisibility(showBar);
-
-        settingsBackdrop.style.display = "none";
-        settingsBackdrop.classList.add("hidden");
-
-    }
-
-    function applyAiBarVisibility(show) {
-        if (show) {
-            aiBar.classList.remove("hidden");
-            editorContainer.classList.add("with-ai-bar");
-        } else {
-            aiBar.classList.add("hidden");
-            editorContainer.classList.remove("with-ai-bar");
-        }
-    }
-
-    settingsButton.addEventListener("click", () => {
-        loadSettings();
-        settingsBackdrop.classList.remove("hidden");
+      tabEl.appendChild(nameEl);
+      tabEl.appendChild(inputEl);
+      tabEl.appendChild(downloadBtn);
+      container.appendChild(tabEl);
     });
+  }
 
-    settingsCancelBtn.addEventListener("click", () => {
-        settingsBackdrop.classList.add("hidden");
+  function switchTab(id) {
+    activeTabId = id;
+    const tab = tabs.find((t) => t.id === id);
+    if (tab && editor) {
+      editor.setModel(tab.model);
+    }
+
+    document.querySelectorAll(".tab").forEach((el) => {
+      el.classList.toggle("active", el.dataset.id === id);
     });
+  }
 
-    settingsSaveBtn.addEventListener("click", () => {
-        const apiKey = settingsApiKeyInput.value.trim();
-        const showBar = settingsShowAiBarCheckbox.checked;
+  function detectLanguage(filename) {
+    if (filename.endsWith(".json")) return "json";
+    if (filename.endsWith(".js")) return "javascript";
+    if (filename.endsWith(".ts")) return "typescript";
+    if (filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
+    if (filename.endsWith(".css")) return "css";
+    if (filename.endsWith(".md")) return "markdown";
+    return "plaintext";
+  }
 
-        if (apiKey) {
-            localStorage.setItem(LS_KEY_API, apiKey);
-        } else {
-            localStorage.removeItem(LS_KEY_API);
-        }
-        localStorage.setItem(LS_KEY_SHOW_BAR, showBar ? "true" : "false");
+  function downloadFile(tab) {
+    const content = tab.model.getValue();
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = tab.name;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
 
-        applyAiBarVisibility(showBar);
-        settingsBackdrop.classList.add("hidden");
-    });
+  function findTabByName(name) {
+    return tabs.find((t) => t.name === name);
+  }
 
-    // 初期ロード時に設定反映
+  // ====== 設定・ローカルストレージ ======
+  const LS_KEY_API = "geminiApiKey";
+  const LS_KEY_SHOW_BAR = "geminiShowAiBar";
+
+  const settingsButton = document.getElementById("settings-button");
+  const settingsBackdrop = document.getElementById("settings-backdrop");
+  const settingsApiKeyInput = document.getElementById("settings-api-key");
+  const settingsShowAiBarCheckbox = document.getElementById("settings-show-ai-bar");
+  const settingsSaveBtn = document.getElementById("settings-save");
+  const settingsCancelBtn = document.getElementById("settings-cancel");
+
+  const aiBar = document.getElementById("ai-bar");
+  const editorContainer = document.getElementById("editor-container");
+
+  function loadSettings() {
+    const apiKey = localStorage.getItem(LS_KEY_API) || "";
+    const showBar = localStorage.getItem(LS_KEY_SHOW_BAR) === "true";
+
+    settingsApiKeyInput.value = apiKey;
+    settingsShowAiBarCheckbox.checked = showBar;
+    applyAiBarVisibility(showBar);
+  }
+
+  function applyAiBarVisibility(show) {
+    if (show) {
+      aiBar.classList.remove("hidden");
+      editorContainer.classList.add("with-ai-bar");
+    } else {
+      aiBar.classList.add("hidden");
+      editorContainer.classList.remove("with-ai-bar");
+    }
+  }
+
+  settingsButton.addEventListener("click", () => {
     loadSettings();
+    settingsBackdrop.classList.remove("hidden");
+  });
 
-    // ====== Gemini 連携 ======
-    const aiInput = document.getElementById("ai-input");
-    const aiRunBtn = document.getElementById("ai-run");
-    const aiStatus = document.getElementById("ai-status");
+  settingsCancelBtn.addEventListener("click", () => {
+    settingsBackdrop.classList.add("hidden");
+  });
 
-    aiRunBtn.addEventListener("click", () => {
-        runGemini();
-    });
+  settingsSaveBtn.addEventListener("click", () => {
+    const apiKey = settingsApiKeyInput.value.trim();
+    const showBar = settingsShowAiBarCheckbox.checked;
 
-    aiInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            runGemini();
-        }
-    });
+    if (apiKey) {
+      localStorage.setItem(LS_KEY_API, apiKey);
+    } else {
+      localStorage.removeItem(LS_KEY_API);
+    }
+    localStorage.setItem(LS_KEY_SHOW_BAR, showBar ? "true" : "false");
 
-    async function runGemini() {
-        const apiKey = localStorage.getItem(LS_KEY_API);
-        if (!apiKey) {
-            alert("Gemini API キーが設定されていません。右下の設定アイコンから登録してください。");
-            return;
-        }
+    applyAiBarVisibility(showBar);
+    settingsBackdrop.classList.add("hidden");
+  });
 
-        const prompt = aiInput.value.trim();
-        if (!prompt) return;
+  // 初期ロード時に設定反映
+  loadSettings();
 
-        aiRunBtn.disabled = true;
-        aiStatus.textContent = "Thinking...";
-        try {
-            // 現在のファイル一覧と内容をまとめる（長くなりすぎないように少し制限）
-            const filesSummary = tabs.map(t => {
-                const content = t.model.getValue();
-                const maxLen = 4000;
-                return {
-                    name: t.name,
-                    content: content.length > maxLen ? content.slice(0, maxLen) + "\n/* ...truncated... */" : content
-                };
-            });
+  // ====== Gemini 連携 ======
+  const aiInput = document.getElementById("ai-input");
+  const aiRunBtn = document.getElementById("ai-run");
+  const aiStatus = document.getElementById("ai-status");
 
-            const systemInstruction = `
+  aiRunBtn.addEventListener("click", () => {
+    runGemini();
+  });
+
+  aiInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      runGemini();
+    }
+  });
+
+  async function runGemini() {
+    const apiKey = localStorage.getItem(LS_KEY_API);
+    if (!apiKey) {
+      alert("Gemini API キーが設定されていません。右下の設定アイコンから登録してください。");
+      return;
+    }
+
+    const prompt = aiInput.value.trim();
+    if (!prompt) return;
+
+    aiRunBtn.disabled = true;
+    aiStatus.textContent = "Thinking...";
+    try {
+      const filesSummary = tabs.map((t) => {
+        const content = t.model.getValue();
+        const maxLen = 4000;
+        return {
+          name: t.name,
+          content: content.length > maxLen ? content.slice(0, maxLen) + "\n/* ...truncated... */" : content
+        };
+      });
+
+      const systemInstruction = `
 あなたはフロントエンド開発用のAIコーディングアシスタントです。
 ユーザーの指示に基づいて、必要なファイルを作成・更新してください。
 特に index.html, style.css, script.js などが必要だと思ったら、それらのファイルを files 配列に含めてください。
@@ -487,13 +557,13 @@
 既存ファイルを更新する場合も、同じ name で content を上書きする形で返してください。
 `;
 
-            const body = {
-                contents: [
-                    {
-                        role: "user",
-                        parts: [
-                            {
-                                text:
+      const body = {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text:
 `[システム指示]
 ${systemInstruction}
 
@@ -502,69 +572,71 @@ ${JSON.stringify(filesSummary, null, 2)}
 
 [ユーザーの要望]
 ${prompt}`
-                            }
-                        ]
-                    }
-                ],
-                generationConfig: {
-                    responseMimeType: "application/json"
-                }
-            };
-
-            const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=" + encodeURIComponent(apiKey), {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(body)
-            });
-
-            if (!res.ok) {
-                throw new Error("Gemini API error: " + res.status);
-            }
-
-            const data = await res.json();
-            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!text) {
-                throw new Error("Gemini から有効なレスポンスが得られませんでした。");
-            }
-
-            let parsed;
-            try {
-                parsed = JSON.parse(text);
-            } catch (e) {
-                console.error("JSON parse error", e, text);
-                throw new Error("Gemini のレスポンスを JSON として解釈できませんでした。");
-            }
-
-            if (!parsed.files || !Array.isArray(parsed.files)) {
-                throw new Error("Gemini のレスポンスに files 配列がありません。");
-            }
-
-            // files を反映
-            parsed.files.forEach(f => {
-                if (!f.name || typeof f.content !== "string") return;
-                const existing = findTabByName(f.name);
-                if (existing) {
-                    existing.model.setValue(f.content);
-                    const lang = detectLanguage(existing.name);
-                    monaco.editor.setModelLanguage(existing.model, lang);
-                } else {
-                    createNewTab(f.name, f.content);
-                }
-            });
-
-            aiStatus.textContent = "Done";
-        } catch (err) {
-            console.error(err);
-            aiStatus.textContent = "Error";
-            alert("Gemini 呼び出し中にエラーが発生しました: " + err.message);
-        } finally {
-            aiRunBtn.disabled = false;
-            setTimeout(() => { if (aiStatus.textContent === "Done") aiStatus.textContent = ""; }, 1500);
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json"
         }
-    }
-</script>
+      };
 
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=" +
+          encodeURIComponent(apiKey),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error("Gemini API error: " + res.status);
+      }
+
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        throw new Error("Gemini から有効なレスポンスが得られませんでした。");
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        console.error("JSON parse error", e, text);
+        throw new Error("Gemini のレスポンスを JSON として解釈できませんでした。");
+      }
+
+      if (!parsed.files || !Array.isArray(parsed.files)) {
+        throw new Error("Gemini のレスポンスに files 配列がありません。");
+      }
+
+      parsed.files.forEach((f) => {
+        if (!f.name || typeof f.content !== "string") return;
+        const existing = findTabByName(f.name);
+        if (existing) {
+          existing.model.setValue(f.content);
+          const lang = detectLanguage(existing.name);
+          monaco.editor.setModelLanguage(existing.model, lang);
+        } else {
+          createNewTab(f.name, f.content);
+        }
+      });
+
+      aiStatus.textContent = "Done";
+    } catch (err) {
+      console.error(err);
+      aiStatus.textContent = "Error";
+      alert("Gemini 呼び出し中にエラーが発生しました: " + err.message);
+    } finally {
+      aiRunBtn.disabled = false;
+      setTimeout(() => {
+        if (aiStatus.textContent === "Done") aiStatus.textContent = "";
+      }, 1500);
+    }
+  }
+</script>
 </body>
 </html>
