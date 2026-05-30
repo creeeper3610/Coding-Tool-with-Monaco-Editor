@@ -387,6 +387,10 @@
         settingsApiKeyInput.value = apiKey;
         settingsShowAiBarCheckbox.checked = showBar;
         applyAiBarVisibility(showBar);
+
+        settingsBackdrop.style.display = "none";
+        settingsBackdrop.classList.add("hidden");
+
     }
 
     function applyAiBarVisibility(show) {
