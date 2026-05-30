@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Tab Monaco Editor</title>
+    <style>
+        * { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #fff; overflow: hidden; }
+        #app { display: flex; flex-direction: column; height: 100%; }
+        
+        /* タブバー */
+        .tab-bar { display: flex; align-items: center; background-color: #252526; padding: 0 10px; height: 40px; border-bottom: 1px solid #3c3c3c; overflow-x: auto; }
+        .tabs-container { display: flex; align-items: center; height: 100%; }
+        
+        /* タブデザイン */
+        .tab { display: flex; align-items: center; background-color: #2d2d2d; color: #969696; padding: 0 15px; height: 100%; border-right: 1px solid #252526; cursor: pointer; user-select: none; position: relative; min-width: 140px; max-width: 220px; justify-content: space-between; }
+        .tab.active { background-color: #1e1e1e; color: #ffffff; border-top: 2px solid #007acc; }
+        .tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; margin-right: 8px; font-size: 13px; }
+        .tab-input { background: #3c3c3c; color: white; border: 1px solid #007acc; font-size: 13px; padding: 2px; width: 100%; display: none; }
+        
+        /* ダウンロードSVGボタン */
+        .download-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; fill: #969696; transition: background 0.2s, fill 0.2s; z-index: 10; }
+        .download-btn:hover { background-color: #3c3c3c; fill: #007acc; }
+        .tab.active .download-btn { fill: #cccccc; }
+        .tab.active .download-btn:hover { fill: #007acc; }
+
+        /* プラスボタン */
+        .add-tab-btn { background: none; border: none; color: #cccccc; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-left: 5px; border-radius: 4px; }
+        .add-tab-btn:hover { background-color: #333333; color: white; }
+
+        /* エディタ領域 */
+        #editor-container { flex-grow: 1; width: 100%; height: calc(100% - 40px); }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="tab-bar">
+        <div class="tabs-container" id="tabs-container"></div>
+        <button class="add-tab-btn" id="add-tab-btn" title="タブを追加">+</button>
+    </div>
+    <div id="editor-container"></div>
+</div>
+
+<!-- 最も安定している公式推奨のローダー配信元(unpkg)に変更 -->
+<script src="https://unpkg.com"></script>
+<script>
+    // 依存関係を明示的に同期ロードするように設定変更
+    require.config({ 
+        paths: { 'vs': 'https://unpkg.com' } 
+    });
+
+    let editor = null;
+    let tabs = [];
+    let activeTabId = null;
+    let tabCounter = 0;
+
+    const initialJsonContent = `{
+  "name": "example-project",
+  "version": "1.0.0",
+  "description": "Monacoエディタのテストファイルです",
+  "status": "success",
+  "features": [
+    "multi-tab",
+    "rename-on-dblclick",
+    "svg-download"
+  ]
+}`;
+
+    // 読み込み完了後に確実に実行する
+    require(['vs/editor/editor.main'], function() {
+        editor = monaco.editor.create(document.getElementById('editor-container'), {
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            tabSize: 2
+        });
+
+        // エディタ本体の生成に成功したあとに初期タブを作る
+        createNewTab("example.json", initialJsonContent);
+        
+        document.getElementById('add-tab-btn').addEventListener('click', () => {
+            createNewTab();
+        });
+    });
+
+    function createNewTab(filename = null, content = "") {
+        tabCounter++;
+        const id = 'tab-' + tabCounter;
+        const name = filename || `file_${tabCounter}.txt`;
+        
+        // エディタの準備ができていない場合はスキップ
+        if (!window.monaco) return;
+
+        const model = monaco.editor.createModel(content, null, monaco.Uri.file(name));
+        const tabObj = { id, name, model };
+        tabs.push(tabObj);
+        
+        renderTabs();
+        switchTab(id);
+    }
+
+    function renderTabs() {
+        const container = document.getElementById('tabs-container');
+        container.innerHTML = '';
+        
+        tabs.forEach(tab => {
+            const tabEl = document.createElement('div');
+            tabEl.className = `tab ${tab.id === activeTabId ? 'active' : ''}`;
+            tabEl.dataset.id = tab.id;
+            
+            const nameEl = document.createElement('span');
+            nameEl.className = 'tab-name';
+            nameEl.innerText = tab.name;
+            
+            const inputEl = document.createElement('input');
+            inputEl.className = 'tab-input';
+            inputEl.value = tab.name;
+            
+            const downloadBtn = document.createElement('div');
+            downloadBtn.className = 'download-btn';
+            downloadBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>`;
+
+            tabEl.addEventListener('click', (e) => {
+                if (e.target.closest('.download-btn') || e.target.closest('.tab-input')) return;
+                switchTab(tab.id);
+            });
+
+            tabEl.addEventListener('dblclick', (e) => {
+                if (e.target.closest('.download-btn')) return;
+                nameEl.style.display = 'none';
+                inputEl.style.display = 'block';
+                inputEl.focus();
+                inputEl.select();
+            });
+
+            const saveName = () => {
+                const newName = inputEl.value.trim();
+                if (newName && newName !== tab.name) {
+                    tab.name = newName;
+                    const oldModel = tab.model;
+                    tab.model = monaco.editor.createModel(oldModel.getValue(), null, monaco.Uri.file(newName));
+                    oldModel.dispose();
+                    if (tab.id === activeTabId) editor.setModel(tab.model);
+                }
+                renderTabs();
+            };
+            
+            inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') renderTabs(); });
+            inputEl.addEventListener('blur', saveName);
+            downloadBtn.addEventListener('click', (e) => { e.stopPropagation(); downloadFile(tab); });
+            
+            tabEl.appendChild(nameEl);
+            tabEl.appendChild(inputEl);
+            tabEl.appendChild(downloadBtn);
+            container.appendChild(tabEl);
+        });
+    }
+
+    function switchTab(id) {
+        activeTabId = id;
+        const tab = tabs.find(t => t.id === id);
+        if (tab && editor) editor.setModel(tab.model);
+        document.querySelectorAll('.tab').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+    }
+
+    function downloadFile(tab) {
+        const blob = new Blob([tab.model.getValue()], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = tab.name;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+</script>
+</body>
+</html>
